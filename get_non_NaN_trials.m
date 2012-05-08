@@ -1,0 +1,16 @@
+function [mat1_out mat2_out]=get_non_NaN_trials(mat1_in, mat2_in)
+% drops trials which are not acceptable, represented by NaN's instead of
+% 1 or 0.
+% the matrices dimentions are <number of samples> X <number of trials>
+
+if ~isequal(size(mat1_in),size(mat2_in))
+	mat1_out = NaN; mat2_out=NaN;
+	warning('input matrices have different sizes!')
+	return
+end
+OK1=~isnan(mat1_in(1,:));
+OK2=~isnan(mat2_in(1,:));
+OK_both=OK1&OK2;
+
+mat1_out=mat1_in(:,OK_both);
+mat2_out=mat2_in(:,OK_both);

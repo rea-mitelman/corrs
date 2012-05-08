@@ -1,0 +1,131 @@
+%% tab2mat_trial
+clear
+base=['D:\Rea' '''' 's_Documents\Prut\Ctx-Thal\'];
+fnm=[base 'data\HugoCtxThlOffline.txt'];
+indir=[base 'data\all_MergedEdFiles\'];
+output_dir=[base 'results\'];
+
+PDmin=100;
+PDmax=500;
+Tmin=-1000;
+Tmax=1000;
+ev2take='to';
+
+bin_size=100;
+
+res_subsess={
+	'h22002ee'
+	'h22003ee'
+	'h21902ee'
+	'h21906ee'
+	'h21908ee'};
+
+non_res_subsess={
+	'h22005ee'
+	'h21904ee'};
+
+%electrode locations should be encoded in the table data!
+ctx_elects=1:3;
+thal_elects=4;
+tab = table_text2mat( fnm, indir);
+all_comp_jpsth.responsive=zeros(0,0,0);all_comp_jpsth.non_responsive=zeros(0,0,0);
+
+% % %%
+for isess=1:length(tab)
+	id.ctx=[];id.thal=[];
+	all_mats.ctx={};all_mats.thal={};
+	res_flag = any(strcmp(res_subsess,tab(isess).fnm));
+	if res_flag 
+		res_field='responsive';
+	else
+		res_field='non_responsive';
+	end
+% for isess=1
+	for iunit=1:length(tab(isess).sp)
+		this_unit=tab(isess).sp(iunit).id;
+		if ismember(get_elec_num(this_unit),ctx_elects)
+			location='ctx';
+		elseif ismember(get_elec_num(this_unit),thal_elects)
+			location='thal';
+		else
+			error('could not find electrode location')
+		end
+		all_mats.(location){end+1}= extract_PST_mat( tab, isess, iunit, PDmin, PDmax, Tmin, Tmax, ev2take);
+		id.(location)(end+1)=this_unit;
+	end
+	
+	for i_ctx=1:length(all_mats.ctx)
+		for i_thal=1:length(all_mats.thal)
+			
+			[ctx_mat,thal_mat]=get_non_NaN_trials(all_mats.ctx{i_ctx}',all_mats.thal{i_thal}');
+			if isempty(ctx_mat) || isempty(thal_mat) || sum(thal_mat(:))/length(thal_mat(:))*1000 < 0.5 || sum(ctx_mat(:))/length(ctx_mat(:))*1000 < 0.5
+				continue
+			end
+			%%
+			
+			[res, shift_predict, psth_pred, surprise_mat, std_mat ] =  my_JPSTH(ctx_mat, thal_mat, bin_size);
+			
+			all_comp_jpsth.(res_field)(:,:,end+1)=res-psth_pred;
+% 			plot_JPST(ctx_mat,thal_mat,res,psth_pred,std_mat,Tmin,Tmax,bin_size)
+			strng=['sess-' tab(isess).fnm ' ctx-' num2str(id.ctx(i_ctx)) ' thal-' num2str(id.thal(i_thal)) '  ' num2str(size(ctx_mat,2)) ' trials ' res_field];
+			suptitle(strng)
+			file_dest=[output_dir strng];
+			saveas(gca,file_dest,'jpg')
+			keyboard
+			
+		end
+		
+		
+	end
+	
+end
+save([output_dir 'all_jpsth'],'all_comp_jpsth');
+%%
+figure
+t=[Tmin+bin_size/2:bin_size:Tmax-bin_size/2]/1000;
+
+mean_jpsth_resp=mean(all_comp_jpsth.responsive,3);
+mean_jpsth_no_resp=mean(all_comp_jpsth.non_responsive,3);
+sem_jpsth_resp=std(all_comp_jpsth.responsive,[],3)/sqrt(size(all_comp_jpsth.responsive,3));
+sem_jpsth_no_resp=std(all_comp_jpsth.non_responsive,[],3)/sqrt(size(all_comp_jpsth.non_responsive,3));
+
+mean_jpsth_resp_diag=diag(mean_jpsth_resp);
+mean_jpsth_no_resp_diag=diag(mean_jpsth_no_resp);
+sem_jpsth_resp_diag=diag(sem_jpsth_resp);
+sem_jpsth_no_resp_diag=diag(sem_jpsth_no_resp);
+
+diag_
+subplot(2,2,1)
+pcolor(t,t,mean_jpsth_resp)
+shading interp
+colorbar
+xlabel('ctx. time (s)')
+ylabel('thal. time (s)')
+title('Mean JPSTH of SCP responsive areas')
+axis square
+
+subplot(2,2,2)
+pcolor(t,t,mean_jpsth_no_resp)
+shading interp
+colorbar
+xlabel('ctx. time (s)')
+ylabel('thal. time (s)')
+title('Mean JPSTH of SCP non-responsive areas')
+axis square
+
+subplot(2,2,3)
+errorbar_patch(t,mean_jpsth_resp_diag,sem_jpsth_resp_diag);
+title('diagonal of SCP responsive')
+axis([-inf inf -.1 .1])
+
+subplot(2,2,4)
+errorbar_patch(t,mean_jpsth_no_resp_diag,sem_jpsth_no_resp_diag);
+title('diagonal of SCP non-responsive')
+axis([-inf inf -.1 .1])
+saveas(gca,[output_dir 'mean_jpsth'],'jpg')
+% iunit=7;isess=1;
+%
+% all_unit_mats{iunit}= extract_PST_mat( tab, isess, iunit, PDmin, PDmax, Tmin, Tmax, ev2take);
+
+
+
